@@ -1,2 +1,5 @@
 ENV/
 data/.cache.sqlite
+.venv
+untracked/
+.env
