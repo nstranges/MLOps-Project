@@ -1,24 +1,21 @@
 
 import pandas as pd
-from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-def get_valid_date_prefixes(start_date: str, end_date: str):
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d")
+def get_valid_date_prefixes(start_date: pd.Timestamp, end_date: pd.Timestamp):
     date_prefixes = []
-    current = start
-    while current <= end:
+    current = start_date
+    while current <= end_date:
         year = current.year
         month = f"{current.month:02d}"
         date_prefixes.append(f"year={year}/month={month}")
         current += relativedelta(months=1)
     return date_prefixes
 
-def get_raw_data(s3_ds, start_date, end_date):
+def get_raw_data(s3_ds, start_date: pd.Timestamp, end_date: pd.Timestamp):
     date_prefixes = get_valid_date_prefixes(
-        start_date = start_date.strftime("%Y-%m-%d"),
-        end_date = end_date.strftime("%Y-%m-%d")
+        start_date = start_date,
+        end_date = end_date
     )
     dfs = []
     for date_prefix in date_prefixes:
