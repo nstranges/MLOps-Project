@@ -4,10 +4,7 @@ import json
 import boto3
 import lakefs
 import pandas as pd
-from dotenv import load_dotenv
 from lakefs.client import Client
-
-load_dotenv()
 
 class LakeFSDataStore:
 
