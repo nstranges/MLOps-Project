@@ -15,6 +15,7 @@ def get_valid_date_prefixes(start_date: pd.Timestamp, end_date: pd.Timestamp):
 
 def get_raw_data_from_main(lakefs_ds: LakeFSDataStore, start_date: pd.Timestamp, end_date: pd.Timestamp):
     current_branch = lakefs_ds.branch
+    print(f"Switching from {current_branch} to main to fetch raw data")
     lakefs_ds.checkout("main")
     date_prefixes = get_valid_date_prefixes(
         start_date = start_date,
