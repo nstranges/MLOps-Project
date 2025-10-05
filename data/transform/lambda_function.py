@@ -1,20 +1,26 @@
 import sys
 sys.path.append("/opt")
+sys.path.append(".")
 
+import json 
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from shared.data_store import S3DataStore
-from transform.utils import get_raw_data
+from shared.data_store import LakeFSDataStore
+from transform.utils import get_raw_data_from_main
 
-def process_weather_data(s3_ds: S3DataStore):
-    manifest = s3_ds.load_json(key = "data/processed/manifest.json")
+def process_weather_data(
+        lakefs_ds: LakeFSDataStore,
+        default_start_date: str
+    ):
+    
+    manifest = lakefs_ds.load_json(key = "data/processed/manifest.json")
     if not manifest:
-        manifest = {"last_updated_date": "2018-01-01"}
+        manifest = {"last_updated_date": default_start_date}
     start_date = pd.to_datetime(manifest['last_updated_date']) + pd.Timedelta(days=1)
     end_date = pd.Timestamp(datetime.now().date())
 
-    df = get_raw_data(s3_ds, start_date, end_date)
+    df = get_raw_data_from_main(lakefs_ds, start_date, end_date)
     # Drop unwanted columns
     df = df.drop(columns=[c for c in ["sunrise", "sunset"] if c in df.columns])
 
@@ -52,19 +58,36 @@ def process_weather_data(s3_ds: S3DataStore):
         for month in df_year['month'].unique():
             df_month = df_year[df_year['month'] == month]
             if not df_month.empty:
-                s3_ds.save_df(
+                lakefs_ds.save_df(
                     df = df_month,
                     key = f"data/processed/year={year}/month={month}/data.csv"
                 )
-    s3_ds.save_json(
+    new_last_updated_date = lakefs_ds.load_json(
+        key = "data/raw/manifest.json"
+    )["last_updated_date"]
+    lakefs_ds.save_json(
         key = "data/processed/manifest.json",
         data = {
-            "last_updated_date": s3_ds.load_json(
-                key = "data/raw/manifest.json"
-            )["last_updated_date"]
+            "last_updated_date": new_last_updated_date
         }
     )
+    return new_last_updated_date
 
 def lambda_handler(event, _):
-    s3_ds = S3DataStore(bucket_name = "weather-data-bucket-mlops")
-    process_weather_data(s3_ds)
+    lakefs_ds = LakeFSDataStore(
+        repo_name = "weather-data",
+        endpoint = "http://18.222.212.217:8000"
+    )
+    current_date = pd.Timestamp(datetime.now().date()).strftime("%Y-%m-%d")
+    lakefs_ds.create_branch(
+        name = f"{current_date}-data-transform",
+        checkout = True
+    )
+    last_updated_date = process_weather_data(lakefs_ds, "2018-01-01")
+    commit_id = lakefs_ds.commit(
+        message = f"Transformed data till {last_updated_date}"
+    )
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"commit_id": commit_id})
+    }

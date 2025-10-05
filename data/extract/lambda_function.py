@@ -1,17 +1,22 @@
 import sys
 sys.path.append("/opt")
+sys.path.append(".")
 
+import json
 import pandas as pd
 from datetime import datetime
 from extract.open_meteo import OpenMeteoAPI
-from shared.data_store import S3DataStore
+from shared.data_store import LakeFSDataStore
 from extract.utils import get_valid_date_ranges
 
-def get_weather_data(s3_ds: S3DataStore):
+def get_weather_data(
+        lakefs_ds: LakeFSDataStore,
+        default_start_date: str
+    ):
     
-    manifest = s3_ds.load_json(key = "data/raw/manifest.json")
+    manifest = lakefs_ds.load_json(key = "data/raw/manifest.json")
     if not manifest:
-        manifest = {"last_updated_date": "2018-01-01"}
+        manifest = {"last_updated_date": default_start_date}
     start_date = pd.to_datetime(manifest['last_updated_date']) + pd.Timedelta(days=1)
     end_date = pd.Timestamp(datetime.now().date())
 
@@ -22,7 +27,7 @@ def get_weather_data(s3_ds: S3DataStore):
 
     api = OpenMeteoAPI()
     for start, end in date_ranges:
-        print(f"\nFetching data for {start} to {end}...")
+        print(f"\nFetching data from {start} to {end}...")
         response = api.get_weather(
             lat = 43.7064,
             long = -79.3986,
@@ -46,17 +51,33 @@ def get_weather_data(s3_ds: S3DataStore):
         for month in range(1, 13):
             df_month = df[df['date'].dt.month == month]
             if not df_month.empty:
-                s3_ds.save_df(
+                lakefs_ds.save_df(
                     df = df_month,
                     key = f"data/raw/year={year}/month={month}/data.csv"
                 )
-    s3_ds.save_json(
+    lakefs_ds.save_json(
         key = "data/raw/manifest.json",
         data = {
             "last_updated_date": date_ranges[-1][1]
         }
     )
+    return date_ranges[-1][1]
 
 def lambda_handler(event, _):
-    s3_ds = S3DataStore(bucket_name = "test-weather-etl-2")
-    get_weather_data(s3_ds)
+    lakefs_ds = LakeFSDataStore(
+        repo_name = "weather-data",
+        endpoint = "http://18.222.212.217:8000"
+    )
+    current_date = pd.Timestamp(datetime.now().date()).strftime("%Y-%m-%d")
+    lakefs_ds.create_branch(
+        name = f"{current_date}-data-extract",
+        checkout = True
+    )
+    last_updated_date = get_weather_data(lakefs_ds, "2018-01-01")
+    commit_id = lakefs_ds.commit(
+        message = f"Extracted data till {last_updated_date}"
+    )
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"commit_id": commit_id})
+    }
