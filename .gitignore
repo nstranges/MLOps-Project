@@ -1,2 +1,7 @@
 ENV/
 data/.cache.sqlite
+.venv
+untracked/
+.env
+**/__pycache__
+**/.DS_Store
