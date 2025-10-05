@@ -75,19 +75,22 @@ def process_weather_data(
 
 def lambda_handler(event, _):
     lakefs_ds = LakeFSDataStore(
-        repo_name = "weather-data",
-        endpoint = "http://18.222.212.217:8000"
+        repo_name = event["repo_name"],
+        endpoint = event["lakefs_endpoint"]
     )
     current_date = pd.Timestamp(datetime.now().date()).strftime("%Y-%m-%d")
     lakefs_ds.create_branch(
         name = f"{current_date}-data-transform",
         checkout = True
     )
-    last_updated_date = process_weather_data(lakefs_ds, "2018-01-01")
-    commit_id = lakefs_ds.commit(
-        message = f"Transformed data till {last_updated_date}"
+    
+    last_updated_date = process_weather_data(lakefs_ds, event["default_start_date"])
+    lakefs_ds.commit(message = f"Transformed data till {last_updated_date}")
+    merge_commit = lakefs_ds.merge_branch(
+        dest = "main",
+        delete_after_merge = True
     )
     return {
         "statusCode": 200,
-        "body": json.dumps({"commit_id": commit_id})
+        "body": json.dumps({"commit_id": merge_commit})
     }
