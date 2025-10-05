@@ -13,7 +13,6 @@ class LakeFSDataStore:
         self.branch = branch
         access_key = os.getenv("LAKEFS_USERNAME")
         secret_key = os.getenv("LAKEFS_PASSWORD")
-        print(access_key, secret_key)
         self.repo = lakefs.repository(
             repository_id = repo_name,
             client = Client(
