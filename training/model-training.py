@@ -1,3 +1,4 @@
+import subprocess, sys
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
                              f1_score, confusion_matrix, classification_report, matthews_corrcoef)
@@ -7,14 +8,38 @@ from sklearn.preprocessing import StandardScaler
 import numpy as np
 import joblib
 import boto3
-import subprocess
-import sys
 subprocess.check_call([sys.executable, "-m", "pip", "install", "mlflow"])
 import mlflow
+subprocess.check_call([sys.executable, "-m", "pip", "install", "lakefs"])
+import lakefs
+from lakefs.client import Client
 import os
+from io import StringIO
 
 
-train_dir = os.environ.get("SM_CHANNEL_TRAIN", "/opt/ml/input/data/train")
+
+lakefs_endpoint = os.environ.get("LAKEFS_ENDPOINT") + "/api/v1"
+access_key = os.environ.get("LAKEFS_ACCESS_KEY")
+secret_key = os.environ.get("LAKEFS_SECRET_KEY")
+
+
+
+clt = Client(
+    username=access_key,
+    password=secret_key,
+    host=lakefs_endpoint,
+)
+
+
+# Initialize an S3 client pointing to lakeFS
+s3 = boto3.client(
+    "s3",
+    endpoint_url=lakefs_endpoint,
+    aws_access_key_id=access_key,
+    aws_secret_access_key=secret_key
+)
+
+
 model_dir = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
 
 def train_model(X_train, y_train, X_test, y_test, feature_names, grid_search=False):
@@ -79,9 +104,25 @@ def calculate_performance_metrics(y_test, y_pred):
 
 
 def process_data(): 
-    data_name = ''
-    train_path = os.path.join(train_dir, "final.csv")
-    processed_data = df = pd.read_csv(train_path)
+
+    repo = lakefs.Repository("weather-data", client=clt)
+    ref  = repo.ref("main") 
+
+    # list & read CSVs (prefix filtering)
+    prefixes = ["data/processed/year=2022", "data/processed/year=2023", "data/processed/year=2024"]
+
+    dfs = []
+    for p in prefixes:
+        for obj in ref.objects(prefix=p):  # iterator of objects
+            if obj.path.endswith(".csv"):
+                with ref.object(obj.path).reader(mode="r") as f:
+                    df = pd.read_csv(f)
+                    dfs.append(df)
+
+    combined = pd.concat(dfs, ignore_index=True)
+
+
+    processed_data = pd.concat(dfs, ignore_index=True)
     processed_data = processed_data.drop(columns=["date"])
 
 
@@ -113,14 +154,24 @@ def create_model():
 # mlflow.set_tracking_uri("arn:aws:sagemaker:us-east-2:478492276227:mlflow-tracking-server/TrackingServerV1")
 # mlflow.set_experiment("some-experiment")
 
-s3 = boto3.client("s3")
+
 def run_model_training():
     # Train the model
     model, metrics_rf, X_train = create_model()
     return model, metrics_rf, X_train
 
+
+
+repo_name = "weather-data"
+branch_name = "main"
+repo = lakefs.Repository(repository_id=repo_name, client=clt)
+branch = repo.branch(branch_name)
+commit_id = branch.get_commit().id
+
+
 model, metrics_rf, X_train = run_model_training()
 joblib.dump(model, os.path.join(model_dir, "model.pkl"))
+
 
 params = {
     "verbose": 1,
@@ -136,8 +187,12 @@ params = {
 
 # with mlflow.start_run():
 #     mlflow.log_params(params)
+#     mlflow.log_param("lakefs_repo",   repo)
+#     mlflow.log_param("lakefs_branch", branch)
+#     mlflow.log_param("lakefs_commit_id", commit_id)
 #     mlflow.log_metrics(metrics_fr)
 #     signature = infer_signature(X_train, model.predict(X_train))
+
 
 #     model_info = mlflow.sklearn.log_model(
 #         sk_model=rf,
