@@ -41,6 +41,7 @@ s3 = boto3.client(
 
 
 model_dir = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
+output_dir = os.environ.get("SM_OUTPUT_DATA_DIR", "/opt/ml/output/data")
 
 def train_model(X_train, y_train, X_test, y_test, feature_names, grid_search=False):
     # Initialize and fit the model
@@ -185,7 +186,15 @@ params = {
     "class_weight": "balanced"
 }
 
+output_path = os.path.join(output_dir, "mlflow.json")
+
+
 # with mlflow.start_run():
+#     run_id = mlflow.active_run().info.run_id
+#     with open(output_path, "w") as f:
+#         json.dump({"mlflow_run_id": run_id}, f)
+
+
 #     mlflow.log_params(params)
 #     mlflow.log_param("lakefs_repo",   repo)
 #     mlflow.log_param("lakefs_branch", branch)
