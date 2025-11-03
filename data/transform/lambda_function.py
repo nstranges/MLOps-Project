@@ -8,6 +8,7 @@ import numpy as np
 from datetime import datetime
 from shared.data_store import LakeFSDataStore
 from transform.utils import get_raw_data_from_main
+from shared.config import REMOVE
 
 def process_weather_data(
         lakefs_ds: LakeFSDataStore,
@@ -22,15 +23,11 @@ def process_weather_data(
 
     df = get_raw_data_from_main(lakefs_ds, start_date, end_date)
     # Drop unwanted columns
-    df = df.drop(columns=[c for c in ["sunrise", "sunset"] if c in df.columns])
+    df = df.drop(columns=[c for c in REMOVE if c in df.columns])
 
     # Filter 2018+ only
     df['date'] = pd.to_datetime(df['date'])
     df = df[df['date'].dt.year >= 2018]
-
-    # Drop columns with >50% NaN
-    threshold = len(df) * 0.5
-    df = df.dropna(axis=1, thresh=threshold)
 
     # Fill remaining NaNs with median
     for col in df.columns:
@@ -85,12 +82,18 @@ def lambda_handler(event, _):
     )
     
     last_updated_date = process_weather_data(lakefs_ds, event["default_start_date"])
-    lakefs_ds.commit(message = f"Transformed data till {last_updated_date}")
-    merge_commit = lakefs_ds.merge_branch(
-        dest = "main",
-        delete_after_merge = True
-    )
+    commit_id = lakefs_ds.commit(message = f"Transformed data till {last_updated_date}")
+    
+    # not commiting, will commit after validation
+    # merge_commit = lakefs_ds.merge_branch(
+    #     dest = "main",
+    #     delete_after_merge = True
+    # )
     return {
         "statusCode": 200,
-        "body": json.dumps({"commit_id": merge_commit})
+        "body": json.dumps({
+            "message": "Data Transformation successful.",
+            "commit_id": commit_id,  # based on our code it is returning id
+            "branch": f"{current_date}-data-transform"
+        })
     }
