@@ -76,12 +76,19 @@ def lambda_handler(event, _):
     )
     last_updated_date = get_weather_data(lakefs_ds, event["default_start_date"])
     
-    lakefs_ds.commit(message = f"Extracted data till {last_updated_date}")
-    merge_commit = lakefs_ds.merge_branch(
-        dest = "main",
-        delete_after_merge = True
-    )
+    commit_id = lakefs_ds.commit(message = f"Extracted data till {last_updated_date}")
+    
+    # not merging, will merge after validation
+    # merge_commit = lakefs_ds.merge_branch(
+    #     dest = "main",
+    #     delete_after_merge = True
+    # )
+    
     return {
         "statusCode": 200,
-        "body": json.dumps({"merge_commit": merge_commit})
+        "body": json.dumps({
+            "message": "Data extraction successful.",
+            "commit_id": commit_id,  # based on our code it is returning id
+            "branch": f"{current_date}-data-extract"
+        })
     }
