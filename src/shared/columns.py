@@ -33,13 +33,22 @@ FEATURES = [
 ]
 
 # columns with lot of nan, removed after EDA
-REMOVE =[
-    
-    'sunrise', 'sunset','uv_index_max', 'uv_index_clear_sky_max',
+# REMOVE =[
+#     'sunrise', 'sunset','uv_index_max', 'uv_index_clear_sky_max',
+#     'precipitation_probability_max', 'growing_degree_days_base_0_limit_50',
+#     'leaf_wetness_probability_mean', 'precipitation_probability_mean',
+#     'precipitation_probability_min', 'updraft_max', 'soil_moisture_0_to_100cm_mean',
+#     'soil_moisture_0_to_10cm_mean', 'soil_moisture_0_to_7cm_mean', 'soil_moisture_28_to_100cm_mean',
+#     'soil_moisture_7_to_28cm_mean', 'soil_temperature_0_to_100cm_mean', 'soil_temperature_0_to_7cm_mean',
+#     'soil_temperature_28_to_100cm_mean', 'soil_temperature_7_to_28cm_mean' 
+# ]
+
+# currently used by sklearn model - missing uv_index_max, uv_index_clear_sky_max, soil_moisture_0_to_10cm_mean
+REMOVE = [
+    'sunrise', 'sunset',
     'precipitation_probability_max', 'growing_degree_days_base_0_limit_50',
     'leaf_wetness_probability_mean', 'precipitation_probability_mean',
-    'precipitation_probability_min', 'updraft_max', 'soil_moisture_0_to_100cm_mean',
-    'soil_moisture_0_to_10cm_mean', 'soil_moisture_0_to_7cm_mean', 'soil_moisture_28_to_100cm_mean',
+    'precipitation_probability_min', 'updraft_max', 'soil_moisture_0_to_100cm_mean', 'soil_moisture_0_to_7cm_mean', 'soil_moisture_28_to_100cm_mean',
     'soil_moisture_7_to_28cm_mean', 'soil_temperature_0_to_100cm_mean', 'soil_temperature_0_to_7cm_mean',
     'soil_temperature_28_to_100cm_mean', 'soil_temperature_7_to_28cm_mean' 
 ]

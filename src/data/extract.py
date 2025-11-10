@@ -5,9 +5,32 @@ sys.path.append(".")
 import json
 import pandas as pd
 from datetime import datetime
-from extract.open_meteo import OpenMeteoAPI
-from shared.data_store import LakeFSDataStore
-from extract.utils import get_valid_date_ranges
+from src.api.open_meteo import OpenMeteoAPI
+from src.ds.lakefs_ds import LakeFSDataStore
+from src.data.utils import get_valid_date_ranges
+
+def fetch_data_from_api(start: str, end: str, api: OpenMeteoAPI|None = None) -> pd.DataFrame:
+    if api is None:
+        api = OpenMeteoAPI()
+    response = api.get_weather(
+        lat = 43.7064,
+        long = -79.3986,
+        start_date = start,
+        end_date = end,
+        timezone = "America/New_York"
+    )
+    daily = response.Daily()
+    daily_data = {"date": pd.date_range(
+        start=pd.to_datetime(daily.Time(), unit="s", utc=True),
+        end=pd.to_datetime(daily.TimeEnd(), unit="s", utc=True),
+        freq=pd.Timedelta(seconds=daily.Interval()),
+        inclusive="left"
+    )}
+
+    for i, var_name in enumerate(api.features):
+        daily_data[var_name] = daily.Variables(i).ValuesAsNumpy()
+    df = pd.DataFrame(daily_data)
+    return df
 
 def get_weather_data(
         lakefs_ds: LakeFSDataStore,
@@ -28,25 +51,7 @@ def get_weather_data(
     api = OpenMeteoAPI()
     for start, end in date_ranges:
         print(f"\nFetching data from {start} to {end}...")
-        response = api.get_weather(
-            lat = 43.7064,
-            long = -79.3986,
-            start_date = start,
-            end_date = end,
-            timezone = "America/New_York"
-        )
-        daily = response.Daily()
-        daily_data = {"date": pd.date_range(
-            start=pd.to_datetime(daily.Time(), unit="s", utc=True),
-            end=pd.to_datetime(daily.TimeEnd(), unit="s", utc=True),
-            freq=pd.Timedelta(seconds=daily.Interval()),
-            inclusive="left"
-        )}
-
-        for i, var_name in enumerate(api.features):
-            daily_data[var_name] = daily.Variables(i).ValuesAsNumpy()
-
-        df = pd.DataFrame(daily_data)
+        df = fetch_data_from_api(start, end, api)
         year = datetime.strptime(start, "%Y-%m-%d").year
         for month in range(1, 13):
             df_month = df[df['date'].dt.month == month]
@@ -77,12 +82,6 @@ def lambda_handler(event, _):
     last_updated_date = get_weather_data(lakefs_ds, event["default_start_date"])
     
     commit_id = lakefs_ds.commit(message = f"Extracted data till {last_updated_date}")
-    
-    # not merging, will merge after validation
-    # merge_commit = lakefs_ds.merge_branch(
-    #     dest = "main",
-    #     delete_after_merge = True
-    # )
     
     return {
         "statusCode": 200,

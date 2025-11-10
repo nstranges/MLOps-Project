@@ -1,17 +1,14 @@
 import sys
-import json
-import pandas as pd
-from datetime import datetime
-
-# Add layer paths if necessary
 sys.path.append("/opt")
 sys.path.append(".")
 
-# Import your shared data store and the features list
-from shared.data_store import LakeFSDataStore
-from shared.config import FEATURES
+import json
+import pandas as pd
+from datetime import datetime
+from src.ds.lakefs_ds import LakeFSDataStore
+from src.shared.columns import FEATURES
 
-def validate_data(lakefs_ds: LakeFSDataStore, default_start_date: str) -> (pd.DataFrame, list):
+def validate_data(lakefs_ds: LakeFSDataStore, default_start_date: str) -> list[pd.DataFrame, list]:
     """
     Loads and validates the newly extracted data from the current branch.
     

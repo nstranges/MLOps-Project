@@ -2,7 +2,7 @@ import time
 import openmeteo_requests
 import requests_cache
 from retry_requests import retry
-from shared.config import FEATURES
+from src.shared.columns import FEATURES
 
 class OpenMeteoAPI:
 

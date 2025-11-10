@@ -6,22 +6,11 @@ import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from shared.data_store import LakeFSDataStore
-from transform.utils import get_raw_data_from_main
-from shared.config import REMOVE
+from src.ds.lakefs_ds import LakeFSDataStore
+from src.data.utils import get_data_from_main
+from src.shared.columns import REMOVE
 
-def process_weather_data(
-        lakefs_ds: LakeFSDataStore,
-        default_start_date: str
-    ):
-    
-    manifest = lakefs_ds.load_json(key = "data/processed/manifest.json")
-    if not manifest:
-        manifest = {"last_updated_date": default_start_date}
-    start_date = pd.to_datetime(manifest['last_updated_date']) + pd.Timedelta(days=1)
-    end_date = pd.Timestamp(datetime.now().date())
-
-    df = get_raw_data_from_main(lakefs_ds, start_date, end_date)
+def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Drop unwanted columns
     df = df.drop(columns=[c for c in REMOVE if c in df.columns])
 
@@ -48,6 +37,22 @@ def process_weather_data(
     # Yearly cyclic
     df["year_sin"] = np.sin(2 * np.pi * df["day_of_year"] / 365.25)
     df["year_cos"] = np.cos(2 * np.pi * df["day_of_year"] / 365.25)
+    return df
+
+
+def process_weather_data(
+        lakefs_ds: LakeFSDataStore,
+        default_start_date: str
+    ):
+    
+    manifest = lakefs_ds.load_json(key = "data/processed/manifest.json")
+    if not manifest:
+        manifest = {"last_updated_date": default_start_date}
+    start_date = pd.to_datetime(manifest['last_updated_date']) + pd.Timedelta(days=1)
+    end_date = pd.Timestamp(datetime.now().date())
+
+    df = get_data_from_main(lakefs_ds, "raw", start_date, end_date)
+    df = process_dataframe(df)
 
     # Save per month
     for year in df['year'].unique():

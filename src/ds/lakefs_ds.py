@@ -61,6 +61,22 @@ class LakeFSDataStore:
         obj = self.s3.get_object(Bucket=self.repo_name, Key=key)
         return pd.read_csv(io.BytesIO(obj["Body"].read()))
     
+    def load_df_over_prefixes(self, prefixes: list[str]) -> pd.DataFrame:
+        dfs = []
+        for p in prefixes:
+            full_prefix = self._key(p)
+            paginator = self.s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=self.repo_name, Prefix=full_prefix):
+                for obj in page.get('Contents', []):
+                    if obj['Key'].endswith('.csv'):
+                        csv_obj = self.s3.get_object(Bucket=self.repo_name, Key=obj['Key'])
+                        df = pd.read_csv(io.BytesIO(csv_obj['Body'].read()))
+                        dfs.append(df)
+        if dfs:
+            return pd.concat(dfs, ignore_index=True)
+        else:
+            return pd.DataFrame()
+    
     def checkout(self, branch: str):
         if branch not in [b.id for b in list(self.repo.branches())]:
             print(f"Checkout failed. {branch} does not exist")

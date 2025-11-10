@@ -1,18 +1,15 @@
 import sys
+sys.path.append("/opt")
+sys.path.append(".")
+
 import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from src.ds.lakefs_ds import LakeFSDataStore
+from src.shared.columns import FEATURES, REMOVE
 
-# Add layer paths if necessary
-sys.path.append("/opt")
-sys.path.append(".")
-
-# Import your shared data store and config lists
-from shared.data_store import LakeFSDataStore
-from shared.config import FEATURES, REMOVE
-
-def validate_processed_data(lakefs_ds: LakeFSDataStore, default_start_date: str) -> (pd.DataFrame, list):
+def validate_processed_data(lakefs_ds: LakeFSDataStore, default_start_date: str) -> list[pd.DataFrame, list]:
     """
     Loads and validates the newly transformed data from the current branch.
     
