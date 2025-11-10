@@ -62,5 +62,3 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'weather': f"The weather code for today is : {weather_code}"
     }
-
-lambda_handler({}, {})
