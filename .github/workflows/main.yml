@@ -1,0 +1,37 @@
+name: Deploy Model Code to S3
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/model/train.py'
+      - 'src/model/inference.py'
+      - 'scripts/deploy_model_to_s3.py'
+
+jobs:
+  upload-model-code:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-2
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 python-dotenv
+
+      - name: Create archive and upload to S3
+        run: |
+          cd scripts
+          python deploy_model_to_s3.py
