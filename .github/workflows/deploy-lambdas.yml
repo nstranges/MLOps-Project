@@ -1,0 +1,100 @@
+name: Deploy Lambdas on Code Change
+
+on:             
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'scripts/deploy_to_lambda.py'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-2
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 python-dotenv
+
+      - name: Detect changed Lambdas and deploy
+        run: |
+          set -e
+
+          BEFORE_SHA="${{ github.event.before }}"
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git ls-files)
+          else
+            CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" ${{ github.sha }})
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          cd scripts
+
+          # -----------------------------------
+          # MAPPING FILES → LAMBDA FUNCTIONS
+          # -----------------------------------
+
+          # get-weather-data
+          if echo "$CHANGED_FILES" | grep -Eq \
+            '^src/api/|^src/ds/|^src/shared/|^src/data/utils.py|^src/data/extract.py'; then
+            echo "Deploying get-weather-data"
+            python deploy_to_lambda.py --function-name get-weather-data
+          fi
+
+          # process-weather-data
+          if echo "$CHANGED_FILES" | grep -Eq \
+            '^src/api/|^src/ds/|^src/shared/|^src/data/utils.py|^src/data/transform.py'; then
+            echo "Deploying process-weather-data"
+            python deploy_to_lambda.py --function-name process-weather-data
+          fi
+
+          # validate-raw-data
+          if echo "$CHANGED_FILES" | grep -Eq \
+            '^src/api/|^src/ds/|^src/shared/|^src/data/utils.py|^src/data/validate_extract.py'; then
+            echo "Deploying validate-raw-data"
+            python deploy_to_lambda.py --function-name validate-raw-data
+          fi
+
+          # validate-processed-data
+          if echo "$CHANGED_FILES" | grep -Eq \
+            '^src/api/|^src/ds/|^src/shared/|^src/data/utils.py|^src/data/validate_transform.py'; then
+            echo "Deploying validate-processed-data"
+            python deploy_to_lambda.py --function-name validate-processed-data
+          fi
+
+          # predict-weather-code
+          if echo "$CHANGED_FILES" | grep -Eq \
+            '^src/api/|^src/ds/|^src/shared/|^src/data/utils.py|^src/model/predict.py|^src/data/extract.py|^src/data/transform.py'; then
+            echo "Deploying predict-weather-code"
+            python deploy_to_lambda.py --function-name predict-weather-code
+          fi
+
+          # detect-data-drift
+          if echo "$CHANGED_FILES" | grep -Eq \
+            '^src/api/|^src/ds/|^src/shared/|^src/data/utils.py|^src/monitoring/check_data_drift.py'; then
+            echo "Deploying detect-data-drift"
+            python deploy_to_lambda.py --function-name detect-data-drift
+          fi
+
+          # model-accuracy
+          if echo "$CHANGED_FILES" | grep -Eq \
+            '^src/model/validate_model.py'; then
+            echo "Deploying model-accuracy"
+            python deploy_to_lambda.py --function-name model-accuracy
+          fi
