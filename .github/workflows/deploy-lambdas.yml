@@ -34,12 +34,7 @@ jobs:
         run: |
           set -e
 
-          BEFORE_SHA="${{ github.event.before }}"
-          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            CHANGED_FILES=$(git ls-files)
-          else
-            CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" ${{ github.sha }})
-          fi
+          CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" ${{ github.sha }})
 
           echo "Changed files:"
           echo "$CHANGED_FILES"
